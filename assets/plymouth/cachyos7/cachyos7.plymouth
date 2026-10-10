@@ -1,0 +1,8 @@
+[Plymouth Theme]
+Name=CachyOS 7
+Description=CachyOS 7: CachyOS logo on dark slate with a teal glow and orbiting dots (original)
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/cachyos7
+ScriptFile=/usr/share/plymouth/themes/cachyos7/cachyos7.script

@@ -1,0 +1,261 @@
+#!/usr/bin/env python3
+"""cachyos7-apply - write the CachyOS 7 Xfce configuration (Windows 7 layout, CachyOS colours) for the CURRENT user.
+
+  cachyos7-apply [--scale auto|1|2] [--no-live] [--no-lock] [--logo FILE.svg|png] [--dry-run]
+
+Assets are expected in ~/.themes, ~/.icons, ~/.local/share/sounds (install.sh copies them) and the
+repository's assets/ folder (next to this script, or $CACHYOS7_ASSETS).
+Live mode (default when Xfce is running): pushes settings with xfconf-query and reloads panel/desktop.
+Otherwise writes ~/.config/xfce4/xfconf/xfce-perchannel-xml/*.xml for the next Xfce login."""
+import argparse, html, os, re, shutil, subprocess, sys
+from xml.etree import ElementTree as ET
+
+HOME = os.path.expanduser('~')
+HERE = os.path.dirname(os.path.abspath(__file__))
+ASSETS = os.environ.get('CACHYOS7_ASSETS', os.path.join(os.path.dirname(HERE), 'assets'))
+DATA = f'{HOME}/.local/share/cachyos7'
+XFCONF = f'{HOME}/.config/xfce4/xfconf/xfce-perchannel-xml'
+PANELDIR = f'{HOME}/.config/xfce4/panel'
+GTK, ICONS, CURSOR, SOUNDS = 'CachyOS-7', 'CachyOS-7', 'Win7OS-cursors', 'CachyOS-7'
+
+def run(*a, **k): return subprocess.run(a, capture_output=True, text=True, **k)
+def have(cmd): return shutil.which(cmd) is not None
+
+# ---------------------------------------------------------------- detection
+def monitors():
+    """[(name, width_px, height_px, width_mm)] from xrandr, [] without X."""
+    if not os.environ.get('DISPLAY') or not have('xrandr'): return []
+    out = run('xrandr', '--query').stdout; mons = []
+    for m in re.finditer(r'^(\S+) connected(?: primary)? (\d+)x(\d+)\+\d+\+\d+.*?(\d+)mm x (\d+)mm', out, re.M):
+        mons.append((m.group(1), int(m.group(2)), int(m.group(3)), int(m.group(4))))
+    return mons
+
+def auto_scale(mons):
+    if not mons: return 1, 'no display detected -> 1x'
+    name, w, h, mm = max(mons, key=lambda m: m[1] * m[2])
+    dpi = w / (mm / 25.4) if mm else 0
+    if w >= 3840: return 2, f'{name} {w}x{h} (4K, {dpi:.0f} dpi) -> 2x'
+    if w >= 2560 and dpi >= 160: return 2, f'{name} {w}x{h} at {dpi:.0f} dpi -> 2x'
+    return 1, f'{name} {w}x{h} at {dpi:.0f} dpi -> 1x'
+
+def desktop_file(*ids):
+    dirs = [f'{HOME}/.local/share/applications', '/usr/share/applications', '/var/lib/flatpak/exports/share/applications',
+            f'{HOME}/.local/share/flatpak/exports/share/applications']
+    for i in ids:
+        for d in dirs:
+            if os.path.exists(f'{d}/{i}.desktop'): return i
+    return None
+
+def detect_pins():
+    groups = [('firefox', 'org.mozilla.firefox', 'chromium', 'google-chrome', 'brave-browser', 'vivaldi-stable'),
+              ('thunar', 'org.gnome.Nautilus', 'org.kde.dolphin', 'nemo', 'pcmanfm'),
+              ('xfce4-terminal', 'org.kde.konsole', 'org.gnome.Terminal', 'org.gnome.Console', 'kitty', 'Alacritty'),
+              ('steam', 'com.valvesoftware.Steam'),
+              ('org.godotengine.Godot',)]
+    return [p for p in (desktop_file(*g) for g in groups) if p]
+
+def font(pref, fallback):
+    return pref if pref.split()[0] in run('fc-list', ':', 'family').stdout else fallback
+
+# ---------------------------------------------------------------- model: (name, type, value, children, array)
+def P(name, typ=None, value=None, children=(), values=None): return [name, typ, value, list(children), values]
+def B(v): return 'true' if v else 'false'
+
+def build(scale, pins, no_lock, mons, wall):
+    S = scale; ui = font('Open Sans', 'Sans'); mono = font('Noto Sans Mono', 'Monospace')
+    ch = {}
+    ch['xsettings'] = [
+        P('Net', None, None, [P('ThemeName', 'string', GTK), P('IconThemeName', 'string', ICONS),
+            P('SoundThemeName', 'string', SOUNDS), P('EnableEventSounds', 'bool', True), P('EnableInputFeedbackSounds', 'bool', False)]),
+        P('Gtk', None, None, [P('FontName', 'string', f'{ui} 10'), P('MonospaceFontName', 'string', f'{mono} 11'),
+            P('CursorThemeName', 'string', CURSOR), P('CursorThemeSize', 'int', 24 * S), P('ButtonImages', 'bool', True),
+            P('DecorationLayout', 'string', 'icon:minimize,maximize,close')]),
+        P('Xft', None, None, [P('DPI', 'int', 96), P('Antialias', 'int', 1), P('Hinting', 'int', 1),
+            P('HintStyle', 'string', 'hintslight'), P('RGBA', 'string', 'none')]),
+        P('Gdk', None, None, [P('WindowScalingFactor', 'int', S)])]
+    ch['xfwm4'] = [P('general', None, None, [P(k, t, v) for k, t, v in (
+        ('theme', 'string', 'CachyOS-7-Aero-xhdpi' if S == 2 else 'CachyOS-7-Aero'), ('button_layout', 'string', 'O|HMC'),
+        ('title_alignment', 'string', 'left'), ('title_font', 'string', f'{ui} Bold 10'), ('use_compositing', 'bool', True),
+        ('vblank_mode', 'string', 'auto'), ('frame_opacity', 'int', 92), ('show_frame_shadow', 'bool', True),
+        ('placement_mode', 'string', 'center'), ('placement_ratio', 'int', 100), ('tile_on_move', 'bool', True),
+        ('snap_to_border', 'bool', True), ('snap_to_windows', 'bool', True), ('snap_width', 'int', 16),
+        ('workspace_count', 'int', 1), ('scroll_workspaces', 'bool', False), ('wrap_workspaces', 'bool', False),
+        ('wrap_windows', 'bool', False), ('double_click_action', 'string', 'maximize'), ('cycle_preview', 'bool', True),
+        ('cycle_tabwin_mode', 'int', 0), ('cycle_minimized', 'bool', True), ('easy_click', 'string', 'Super'),
+        ('zoom_desktop', 'bool', False))])]
+    orb = f'{DATA}/cachyos7-orb.png'
+    plugins = [
+        P('plugin-1', 'string', 'whiskermenu', [P(k, t, v) for k, t, v in (
+            ('button-icon', 'string', orb), ('show-button-title', 'bool', False), ('show-button-icon', 'bool', True),
+            ('button-title', 'string', 'CachyOS 7'), ('view-mode', 'uint', 1), ('launcher-show-name', 'bool', True),
+            ('launcher-show-description', 'bool', False), ('position-search-alternate', 'bool', True),
+            ('position-commands-alternate', 'bool', True), ('menu-width', 'int', 520), ('menu-height', 'int', 600),
+            ('launcher-icon-size', 'int', 3), ('category-icon-size', 'int', 2), ('hover-switch-category', 'bool', True),
+            ('profile-shape', 'int', 1), ('show-command-lockscreen', 'bool', True), ('show-command-logout', 'bool', True),
+            ('show-command-shutdown', 'bool', True), ('show-command-restart', 'bool', True), ('show-command-settings', 'bool', True),
+            ('show-command-switchuser', 'bool', False), ('confirm-session-command', 'bool', True))] +
+            [P('favorites', 'array', None, values=[('string', p + '.desktop') for p in pins])]),
+        P('plugin-2', 'string', 'docklike'),
+        P('plugin-8', 'string', 'separator', [P('expand', 'bool', True), P('style', 'uint', 0)]),
+        P('plugin-9', 'string', 'systray', [P('square-icons', 'bool', True), P('single-row', 'bool', True)]),
+        P('plugin-10', 'string', 'pulseaudio', [P('enable-keyboard-shortcuts', 'bool', True), P('show-notifications', 'uint', 1),
+            P('play-sound', 'bool', True), P('mixer-command', 'string', 'pavucontrol')]),
+        P('plugin-11', 'string', 'clock', [P('mode', 'uint', 2), P('digital-layout', 'uint', 1),
+            P('digital-time-format', 'string', '%-I:%M %p'), P('digital-date-format', 'string', '%-m/%-d/%Y'),
+            P('digital-time-font', 'string', f'{ui} 10'), P('digital-date-font', 'string', f'{ui} 10'),
+            P('tooltip-format', 'string', '%A, %B %-d, %Y')]),
+        P('plugin-13', 'string', 'showdesktop', [P('show-on-hover', 'bool', True)])]
+    ch['xfce4-panel'] = [P('configver', 'int', 2), P('panels', 'array', None, [P('dark-mode', 'bool', True),
+        P('panel-1', None, None, [P(k, t, v) for k, t, v in (
+            ('position', 'string', 'p=8;x=0;y=0'), ('length', 'uint', 100), ('position-locked', 'bool', True),
+            ('mode', 'uint', 0), ('size', 'uint', 40), ('icon-size', 'uint', 0), ('nrows', 'uint', 1),
+            ('length-adjust', 'bool', True), ('output-name', 'string', 'Automatic'), ('autohide-behavior', 'uint', 0),
+            ('enable-struts', 'bool', True), ('background-style', 'uint', 2), ('background-image', 'string', f'{DATA}/superbar.png'))] +
+            [P('plugin-ids', 'array', None, values=[('int', i) for i in (1, 2, 8, 9, 10, 11, 13)])])],
+        values=[('int', 1)]), P('plugins', None, None, plugins)]
+    # desktop: wallpaper on every monitor/workspace + Win7 icons
+    names = [m[0] for m in mons] or ['monitor0', 'monitorVirtual-1', 'monitorHDMI-1', 'monitorDP-1', 'monitoreDP-1']
+    mon_nodes = [P(n if n.startswith('monitor') else 'monitor' + n, None, None,
+                   [P(f'workspace{i}', None, None, [P('last-image', 'string', wall), P('image-style', 'int', 5),
+                                                    P('color-style', 'int', 0)]) for i in range(4)]) for n in names]
+    ch['xfce4-desktop'] = [P('backdrop', None, None, [P('screen0', None, None, mon_nodes)]),
+        P('desktop-icons', None, None, [P('style', 'int', 2), P('icon-size', 'uint', 48), P('show-thumbnails', 'bool', True),
+            P('file-icons', None, None, [P('show-home', 'bool', True), P('show-trash', 'bool', True),
+                P('show-filesystem', 'bool', True), P('show-removable', 'bool', True)])]),
+        P('desktop-menu', None, None, [P('show', 'bool', True)])]
+    ch['xfce4-notifyd'] = [P('theme', 'string', GTK), P('notify-location', 'uint', 3), P('initial-opacity', 'double', 0.95),
+                           P('expire-timeout', 'int', 8)]
+    if no_lock:
+        ch['xfce4-screensaver'] = [P('saver', None, None, [P('enabled', 'bool', False), P('idle-activation', None, None, [P('enabled', 'bool', False)])]),
+                                   P('lock', None, None, [P('enabled', 'bool', False), P('saver-activation', None, None, [P('enabled', 'bool', False)])])]
+        ch['xfce4-power-manager'] = [P('xfce4-power-manager', None, None, [P('dpms-enabled', 'bool', False), P('blank-on-ac', 'int', 0),
+            P('dpms-on-ac-off', 'uint', 0), P('dpms-on-ac-sleep', 'uint', 0), P('inactivity-on-ac', 'uint', 0),
+            P('lock-screen-suspend-hibernate', 'bool', False)])]
+    return ch
+
+def load_xml_channel(path):
+    """xfconf XML -> model (used for the shipped keyboard-shortcuts template)."""
+    def conv(e):
+        vals = [(v.get('type'), v.get('value')) for v in e.findall('value')]
+        return P(e.get('name'), e.get('type'), e.get('value'), [conv(c) for c in e.findall('property')], vals or None)
+    return [conv(c) for c in ET.parse(path).getroot().findall('property')]
+
+def to_xml(name, props):
+    out = ['<?xml version="1.0" encoding="UTF-8"?>', '', f'<channel name="{name}" version="1.0">']
+    def emit(n, ind):
+        nm, typ, val, kids, vals = n; typ = typ or ('array' if vals else 'empty')
+        a = f'{ind}<property name="{html.escape(nm, True)}" type="{typ}"'
+        if val is not None and typ not in ('empty', 'array'): a += f' value="{html.escape(B(val) if typ == "bool" else str(val), True)}"'
+        if not kids and not vals: out.append(a + '/>'); return
+        out.append(a + '>')
+        for t, v in (vals or []): out.append(f'{ind}  <value type="{t}" value="{html.escape(str(v), True)}"/>')
+        for k in kids: emit(k, ind + '  ')
+        out.append(f'{ind}</property>')
+    for p in props: emit(p, '  ')
+    out.append('</channel>'); return '\n'.join(out) + '\n'
+
+def push_live(chan, props, prefix='', dry=False):
+    for nm, typ, val, kids, vals in props:
+        path = f'{prefix}/{nm}'
+        if vals is not None:
+            args = ['xfconf-query', '-c', chan, '-p', path, '-n', '--force-array']
+            for t, v in vals: args += ['-t', t, '-s', str(v)]
+            if not dry: run(*args)
+        elif typ and typ not in ('empty', 'array') and val is not None:
+            if not dry: run('xfconf-query', '-c', chan, '-p', path, '-n', '-t', typ, '-s', B(val) if typ == 'bool' else str(val))
+        push_live(chan, kids, path, dry)
+
+# ---------------------------------------------------------------- generated images
+def logo_img(src, size):
+    from PIL import Image
+    if src.endswith('.svg'):
+        out = f'{DATA}/logo-{size}.png'; run('rsvg-convert', '-w', str(size), '-h', str(size), '--keep-aspect-ratio', src, '-o', out); src = out
+    return Image.open(src).convert('RGBA').resize((size, size))
+
+def make_orb(logo_src):
+    """Glossy glass orb (slate core, teal rim) with the logo inside: normal / hover / pressed."""
+    import numpy as np; from PIL import Image, ImageDraw, ImageFilter
+    def orb(N, glow=1.0, dark=0.0):
+        y, x = np.mgrid[0:N, 0:N].astype(np.float32); c = (N - 1) / 2; R = N * 0.445
+        r = np.sqrt((x - c) ** 2 + (y - c) ** 2) / R; t = np.clip(r, 0, 1)[..., None]
+        inner = np.array([40, 70, 74], np.float32); edge = np.array([8, 18, 20], np.float32); col = inner + (edge - inner) * t ** 1.6
+        rim = np.exp(-((r - 0.94) / 0.07) ** 2)[..., None] * np.array([0, 255, 204], np.float32) * 0.75 * glow
+        bottom = np.exp(-(((x - c) / (R * 0.7)) ** 2 + ((y - c - R * 0.55) / (R * 0.35)) ** 2))[..., None] * np.array([0, 204, 255], np.float32) * 0.55 * glow
+        col = np.clip(col + rim + bottom, 0, 255) * (1 - dark); a = np.clip((1.0 - r) * R * 0.9, 0, 1) * 255
+        core = np.zeros((N, N, 4), np.float32); core[..., :3] = col; core[..., 3] = a
+        im = Image.fromarray(core.astype('uint8'), 'RGBA')
+        lg = logo_img(logo_src, 1024).resize((int(R * 1.36), int(R * 1.36)), Image.LANCZOS)
+        im.alpha_composite(lg, (int(c - R * 0.66), int(c - R * 0.64)))
+        hl = Image.new('L', (N, N), 0); ImageDraw.Draw(hl).ellipse([c - R * .70, c - R * .93, c + R * .70, c - R * .30], fill=int(70 * (1 - dark * .5)))
+        hl = hl.filter(ImageFilter.GaussianBlur(N / 60)); white = Image.new('RGBA', (N, N), (255, 255, 255, 0))
+        white.putalpha(Image.fromarray(np.minimum(np.array(hl), np.array(im.getchannel('A'))).astype('uint8'))); im.alpha_composite(white)
+        halo = Image.new('RGBA', (N, N), (0, 0, 0, 0)); ImageDraw.Draw(halo).ellipse([c - R * 1.07] * 2 + [c + R * 1.07] * 2, fill=(0, 255, 204, int(80 * glow)))
+        halo = halo.filter(ImageFilter.GaussianBlur(N / 22)); halo.alpha_composite(im); return halo
+    orb(256).save(f'{DATA}/cachyos7-orb.png'); orb(256, 1.6).save(f'{DATA}/cachyos7-orb-hover.png'); orb(256, .6, .25).save(f'{DATA}/cachyos7-orb-pressed.png')
+
+def make_superbar(scale):
+    from PIL import Image, ImageDraw
+    H = 40 * scale; im = Image.new('RGBA', (8, H)); d = ImageDraw.Draw(im)
+    for y in range(H):
+        t = y / (H - 1)
+        c = (int(46 - 28 * t), int(72 - 40 * t), int(78 - 40 * t), int(165 + 20 * t)) if t < .5 else (13, 22, 25, int(212 + 20 * (t - .5)))
+        d.line([(0, y), (8, y)], fill=c)
+    d.line([(0, 0), (8, 0)], fill=(0, 0, 0, 190)); d.line([(0, 1), (8, 1)], fill=(0, 170, 136, 150))
+    if scale == 2: d.line([(0, 2), (8, 2)], fill=(0, 170, 136, 60))
+    im.save(f'{DATA}/superbar.png')
+
+def docklike_rc(pins):
+    os.makedirs(PANELDIR, exist_ok=True)
+    open(f'{PANELDIR}/docklike-2.rc', 'w').write('[user]\npinned=%s;\nforceIconSize=true\niconSize=32\nindicatorStyle=2\n'
+        'inactiveIndicatorStyle=2\nindicatorOrientation=0\nindicatorColorFromTheme=false\nindicatorColor=rgb(0,255,204)\n'
+        'inactiveColor=rgb(0,170,136)\nnoWindowsListIfSingle=false\nshowPreviews=true\nshowWindowCount=true\n'
+        'onlyDisplayVisible=false\nonlyDisplayScreen=false\nkeyAware=false\nmiddleButtonBehavior=1\n' % ';'.join(pins))
+
+XPROFILE_BEGIN = '# --- CachyOS 7: HiDPI/Qt (Xfce only) ---'; XPROFILE_END = '# --- end CachyOS 7 ---'
+def xprofile(scale):
+    p = f'{HOME}/.xprofile'; txt = open(p).read() if os.path.exists(p) else ''
+    txt = re.sub(re.escape(XPROFILE_BEGIN) + r'.*?' + re.escape(XPROFILE_END) + r'\n?', '', txt, flags=re.S)
+    block = (f'{XPROFILE_BEGIN}\nif [ "$XDG_CURRENT_DESKTOP" = "XFCE" ] || [ "$DESKTOP_SESSION" = "xfce" ]; then\n'
+             '    export QT_QPA_PLATFORMTHEME=gtk3\n' + (f'    export QT_ENABLE_HIGHDPI_SCALING=1 QT_AUTO_SCREEN_SCALE_FACTOR=0 QT_SCALE_FACTOR={scale}\n' if scale > 1 else '') +
+             f'    export XCURSOR_THEME={CURSOR} XCURSOR_SIZE={24 * scale}\nfi\n{XPROFILE_END}\n')
+    open(p, 'w').write(txt.rstrip('\n') + ('\n\n' if txt.strip() else '') + block)
+
+# ---------------------------------------------------------------- main
+def main():
+    ap = argparse.ArgumentParser(description='Apply the CachyOS 7 Xfce look for the current user.')
+    ap.add_argument('--scale', default='auto', choices=['auto', '1', '2'])
+    ap.add_argument('--no-live', action='store_true', help='only write XML files (applied at next Xfce login)')
+    ap.add_argument('--no-lock', action='store_true', help='disable screen saver, auto-lock, blanking and sleep (default: Xfce defaults)')
+    ap.add_argument('--logo', help='SVG/PNG logo for the Start orb (default: the CachyOS logo)')
+    ap.add_argument('--dry-run', action='store_true')
+    a = ap.parse_args()
+    mons = monitors()
+    scale, why = (int(a.scale), f'--scale {a.scale}') if a.scale != 'auto' else auto_scale(mons)
+    pins = detect_pins()
+    big = max((m[1] for m in mons), default=1920)
+    wall = f'{HOME}/.local/share/backgrounds/cachyos7/cachyos7-' + ('3840x2160' if big > 2560 else '2560x1440' if big > 1920 else '1920x1080') + '.png'
+    live = not a.no_live and os.environ.get('XDG_CURRENT_DESKTOP') == 'XFCE' and run('pgrep', '-u', str(os.getuid()), 'xfconfd').returncode == 0
+    print(f'CachyOS 7: scale {scale}x ({why}); dock pins: {", ".join(pins) or "none"}; wallpaper {os.path.basename(wall)}; '
+          f'{"live" if live else "XML for next login"}{"; screen lock/sleep OFF" if a.no_lock else ""}{" [dry-run]" if a.dry_run else ""}')
+    ch = build(scale, pins, a.no_lock, mons, wall)
+    tmpl = f'{ASSETS}/config/xfce4-keyboard-shortcuts.xml'
+    if os.path.exists(tmpl): ch['xfce4-keyboard-shortcuts'] = load_xml_channel(tmpl)
+    if a.dry_run:
+        for c in ch: print(f'  would write channel {c}')
+        return
+    os.makedirs(DATA, exist_ok=True)
+    make_orb(a.logo or f'{ASSETS}/orb/cachyos-logo.svg'); make_superbar(scale); docklike_rc(pins); xprofile(scale)
+    if live:
+        for c, props in ch.items():
+            if c == 'xfce4-keyboard-shortcuts':
+                for r in ('/commands/custom', '/xfwm4/custom'): run('xfconf-query', '-c', c, '-p', r, '-r', '-R')
+            push_live(c, props)
+        run('xfce4-panel', '-r'); run('xfdesktop', '--reload')
+        run('xfconf-query', '-c', 'xsettings', '-p', '/Net/ThemeName', '-s', 'Adwaita'); run('sleep', '1')
+        run('xfconf-query', '-c', 'xsettings', '-p', '/Net/ThemeName', '-s', GTK)
+    else:
+        os.makedirs(XFCONF, exist_ok=True)
+        for c, props in ch.items(): open(f'{XFCONF}/{c}.xml', 'w').write(to_xml(c, props))
+    print('done' + ('' if live else f' - log in to "Xfce Session" to see it (config in {XFCONF})'))
+
+if __name__ == '__main__': main()

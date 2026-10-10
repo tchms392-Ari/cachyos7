@@ -1,0 +1,34 @@
+[Icon Theme]
+Name=CachyOS-7
+Comment=Windows-7 icons (B00merang) with CachyOS branding
+Inherits=Windows-7,breeze,Adwaita,hicolor
+Directories=scalable/apps,scalable/places,apps/48,places/48,devices/48
+
+[scalable/apps]
+Size=128
+MinSize=8
+MaxSize=512
+Type=Scalable
+Context=Applications
+
+[scalable/places]
+Size=128
+MinSize=8
+MaxSize=512
+Type=Scalable
+Context=Places
+
+[apps/48]
+Size=48
+Type=Fixed
+Context=Applications
+
+[places/48]
+Size=48
+Type=Fixed
+Context=Places
+
+[devices/48]
+Size=48
+Type=Fixed
+Context=Devices

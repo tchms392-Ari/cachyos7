@@ -1,0 +1,5 @@
+#!/bin/sh
+# CachyOS 7: run lightdm-gtk-greeter at the desktop scale (login-setup.sh rewrites GDK_SCALE; xft-dpi stays 96)
+export GDK_SCALE=2
+export XCURSOR_THEME=Win7OS-cursors XCURSOR_SIZE=48
+exec /usr/bin/lightdm-gtk-greeter "$@"

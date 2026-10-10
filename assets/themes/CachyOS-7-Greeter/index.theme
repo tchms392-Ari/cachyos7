@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=X-GNOME-Metatheme
+Name=CachyOS-7-Greeter
+Comment=CachyOS 7 login screen (LightDM GTK greeter): Win7-style glass login on CachyOS slate/teal
+[X-GNOME-Metatheme]
+GtkTheme=CachyOS-7-Greeter
+IconTheme=CachyOS-7
+CursorTheme=Win7OS-cursors

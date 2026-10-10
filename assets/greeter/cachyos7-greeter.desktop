@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=CachyOS 7 Greeter
+Comment=lightdm-gtk-greeter at 2x with the CachyOS 7 theme
+Exec=/usr/local/bin/cachyos7-greeter
+Type=Application
+X-Ubuntu-Gettext-Domain=lightdm

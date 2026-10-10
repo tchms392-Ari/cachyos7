@@ -1,0 +1,37 @@
+# CachyOS 7 boot splash (original). Logo centred on dark slate with teal glow, 4 orbiting teal dots.
+Window.SetBackgroundTopColor(0.106, 0.165, 0.180);
+Window.SetBackgroundBottomColor(0.051, 0.082, 0.090);
+sw = Window.GetWidth(); shh = Window.GetHeight();
+scale = Math.Min(sw / 1920, shh / 1080); if (scale < 0.5) scale = 0.5;
+glow_img = Image("glow.png"); glow_img = glow_img.Scale(glow_img.GetWidth() * scale, glow_img.GetHeight() * scale);
+glow = Sprite(glow_img); glow.SetX(sw / 2 - glow_img.GetWidth() / 2); glow.SetY(shh * 0.42 - glow_img.GetHeight() / 2); glow.SetZ(1);
+logo_img = Image("logo.png"); logo_img = logo_img.Scale(logo_img.GetWidth() * scale, logo_img.GetHeight() * scale);
+logo = Sprite(logo_img); logo.SetX(sw / 2 - logo_img.GetWidth() / 2); logo.SetY(shh * 0.42 - logo_img.GetHeight() / 2); logo.SetZ(2);
+title_img = Image("title.png"); title_img = title_img.Scale(title_img.GetWidth() * scale, title_img.GetHeight() * scale);
+title = Sprite(title_img); title.SetX(sw / 2 - title_img.GetWidth() / 2); title.SetY(shh * 0.62); title.SetZ(2);
+dot_img = Image("dot.png"); dot_img = dot_img.Scale(dot_img.GetWidth() * scale, dot_img.GetHeight() * scale);
+for (i = 0; i < 4; i++) { dots[i] = Sprite(dot_img); dots[i].SetZ(3); }
+cx = sw / 2; cy = shh * 0.78; r = 34 * scale; t = 0;
+fun refresh_callback () {
+  t++;
+  for (i = 0; i < 4; i++) {
+    a = t * 0.07 - i * 0.55;
+    dots[i].SetX(cx + Math.Cos(a) * r - dot_img.GetWidth() / 2);
+    dots[i].SetY(cy + Math.Sin(a) * r - dot_img.GetHeight() / 2);
+    dots[i].SetOpacity(1 - i * 0.22);
+  }
+  glow.SetOpacity(0.75 + 0.25 * Math.Sin(t * 0.04));
+}
+Plymouth.SetRefreshFunction(refresh_callback);
+# password prompt (disk encryption)
+fun display_password_callback (prompt, bullets) {
+  pr = Image.Text(prompt, 0.9, 0.95, 0.94); p_s = Sprite(pr); p_s.SetPosition(sw / 2 - pr.GetWidth() / 2, shh * 0.86, 10);
+  b = ""; for (i = 0; i < bullets; i++) b += "•";
+  bi = Image.Text(b, 0, 1, 0.8); global.b_s = Sprite(bi); global.b_s.SetPosition(sw / 2 - bi.GetWidth() / 2, shh * 0.86 + 40, 10);
+  global.p_s = p_s;
+}
+fun display_normal_callback () { global.p_s = NULL; global.b_s = NULL; }
+Plymouth.SetDisplayPasswordFunction(display_password_callback);
+Plymouth.SetDisplayNormalFunction(display_normal_callback);
+fun message_callback (text) { m = Image.Text(text, 0.6, 0.75, 0.72); global.m_s = Sprite(m); global.m_s.SetPosition(sw / 2 - m.GetWidth() / 2, shh * 0.93, 10); }
+Plymouth.SetMessageFunction(message_callback);

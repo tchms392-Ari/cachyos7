@@ -1,0 +1,36 @@
+@import url("resource:///org/gtk/libgtk/theme/Default/Default-dark.css");
+/* ===== CachyOS 7 DARK: slate surfaces, light text, teal selection ===== */
+@define-color theme_bg_color #1b2a2e; @define-color theme_base_color #0d1517; @define-color theme_fg_color #e6f2ef;
+@define-color theme_text_color #e6f2ef; @define-color insensitive_fg_color #7f9a96; @define-color borders #3d5a5f;
+window, .background, dialog, messagedialog, filechooser, assistant { background-color: #1b2a2e; color: #e6f2ef; }
+.view, treeview.view, iconview, textview text, list, listview, gridview, columnview, .thunar .standard-view, scrolledwindow viewport { background-color: #0d1517; color: #e6f2ef; }
+treeview.view header button { background-color: #2e4448; background-image: none; color: #e6f2ef; border-color: #3d5a5f; }
+headerbar, .titlebar, toolbar, .toolbar, .primary-toolbar, .location-bar, menubar, statusbar { background-color: #2e4448; background-image: none; color: #e6f2ef; border-color: #3d5a5f; box-shadow: none; }
+.sidebar, placessidebar, placessidebar list, .thunar .sidebar, .thunar .shortcuts-pane, .thunar treeview.sidebar { background-color: #16242a; color: #e6f2ef; }
+menu, .menu, .context-menu, popover, popover > contents, popover.background, tooltip, tooltip.background { background-color: #1b2a2e; color: #e6f2ef; border: 1px solid #00aa88; }
+menu menuitem, .menu menuitem { color: #e6f2ef; }  menu menuitem:disabled { color: #6b8582; }
+entry, spinbutton, combobox entry { background-color: #0d1517; background-image: none; color: #e6f2ef; border: 1px solid #3d5a5f; caret-color: #00ffcc; }
+entry:focus { border-color: #00ccff; box-shadow: inset 0 0 0 1px #00ccff; }
+button, .button, combobox button, menubutton button { background-color: #2e4448; background-image: none; color: #e6f2ef; border: 1px solid #3d5a5f; text-shadow: none; box-shadow: none; }
+button:hover { background-color: #3a575c; border-color: #00aa88; }  button:active, button:checked { background-color: #008066; color: #ffffff; }
+button.flat { background-color: transparent; border-color: transparent; }  button.flat:hover { background-color: #3a575c; }
+notebook > header, notebook > stack { background-color: #1b2a2e; }  notebook tab:checked { background-color: #2e4448; color: #ffffff; box-shadow: inset 0 -2px #00aa88; }
+scrollbar { background-color: #0d1517; }  scrollbar slider { background-color: #4f6c70; }  scrollbar slider:hover { background-color: #00aa88; }
+link, *:link { color: #00ffcc; }  separator { background-color: #3d5a5f; }
+check, radio { background-color: #0d1517; border-color: #5f7c80; }  check:checked, radio:checked { background-color: #00aa88; color: #ffffff; }
+/* selections: teal + white everywhere (fixes white-on-mint in Thunar sidebar) */
+*:selected, *:selected:backdrop, row:selected, row:selected label, treeview.view:selected, treeview.view:selected:backdrop,
+placessidebar row:selected, placessidebar row:selected label, .sidebar row:selected, .sidebar .view:selected, .thunar .view:selected { background-color: #00aa88; background-image: none; color: #ffffff; }
+row:hover { background-color: rgba(0,204,170,0.18); }
+/* ===== CachyOS 7 accents ===== */
+placessidebar row:selected, placessidebar row:selected:backdrop, placessidebar row:selected:backdrop label, placessidebar row:selected label, .sidebar row:selected, .sidebar row:selected label { background-color: #00aa88; background-image: none; color: #ffffff; }
+@define-color theme_selected_bg_color #00aa88;
+@define-color theme_selected_fg_color #ffffff;
+@define-color accent_color #00aa88;
+@define-color accent_bg_color #00aa88;
+*:selected, selection, treeview.view:selected, row:selected, menu menuitem:hover, .menuitem:hover { background-color: #00aa88; color: #ffffff; }
+entry selection, textview text selection, label selection { background-color: #00aa88; color: #ffffff; }
+progressbar progress, scale highlight, levelbar block.filled { background-color: #00aa88; background-image: none; border-color: #008066; }
+@define-color window_bg_color #1b2a2e; @define-color window_fg_color #e6f2ef; @define-color view_bg_color #0d1517; @define-color view_fg_color #e6f2ef;
+@define-color headerbar_bg_color #2e4448; @define-color headerbar_fg_color #e6f2ef; @define-color popover_bg_color #1b2a2e; @define-color popover_fg_color #e6f2ef;
+@define-color card_bg_color #22363a; @define-color sidebar_bg_color #16242a; @define-color dialog_bg_color #1b2a2e;

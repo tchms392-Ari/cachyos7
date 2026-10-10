@@ -1,0 +1,8 @@
+[Sound Theme]
+Name=CachyOS-7
+Comment=CachyOS 7 original soft chimes (synthesized, no Microsoft audio)
+Inherits=freedesktop
+Directories=stereo
+
+[stereo]
+OutputProfile=stereo

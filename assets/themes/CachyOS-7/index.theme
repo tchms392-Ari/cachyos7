@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=X-GNOME-Metatheme
+Name=CachyOS-7
+Comment=CachyOS 7: Windows-7 layout in CachyOS teal/slate (based on B00merang Windows-7, GPL-3.0)
+
+[X-GNOME-Metatheme]
+GtkTheme=CachyOS-7
+IconTheme=CachyOS-7
+CursorTheme=Win7OS-cursors
