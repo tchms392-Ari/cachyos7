@@ -6,6 +6,8 @@
 
 ![Desktop](docs/screenshots/desktop-dark.png)
 
+![Start menu](docs/screenshots/start-menu.png)
+
 | Alt+Tab | Taskbar previews |
 |---|---|
 | ![Alt+Tab](docs/screenshots/alt-tab.png) | ![Dock preview](docs/screenshots/dock-preview.png) |
